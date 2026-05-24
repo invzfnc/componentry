@@ -1,18 +1,15 @@
 import React, { useState } from "react";
 import { ComponentItem, ComponentCategory } from "../types";
+import { supabase, useInventory } from "../context/InventoryContext";
 
-interface CatalogViewProps {
-  items: ComponentItem[];
-  onAddUpdateItem: (item: Partial<ComponentItem>) => void;
-  onDeleteItem: (id: string) => void;
-}
-
-export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: CatalogViewProps) {
+export default function CatalogView() {
+  const { inventory, refreshInventory } = useInventory();
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form states for adding/editing
+  const [formId, setFormId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formSku, setFormSku] = useState("");
   const [formPrice, setFormPrice] = useState("");
@@ -33,6 +30,7 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
 
   const handleOpenAddModal = () => {
     // Reset form
+    setFormId(null);
     setFormName("");
     setFormSku("");
     setFormPrice("");
@@ -42,30 +40,69 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (item: ComponentItem) => {
-    setFormName(item.name);
-    setFormSku(item.sku);
-    setFormPrice(item.price.toString());
-    setFormCategory(item.category);
-    setFormStock(item.stock.toString());
-    setFormIcon(item.icon);
+  const handleOpenEditModal = (item: any) => {
+    setFormId(item.id);
+    setFormName(item.part_name || item.name || "");
+    setFormSku(item.sku || "");
+    setFormPrice((item.price || 0).toString());
+    setFormCategory(item.category || "CPU");
+    setFormStock((item.stock_level ?? item.stock ?? 0).toString());
+    // In db, if there is no icon we can provide a default
+    // We'll keep the UI state minimal here, maybe ignore icon if it's not in db
+    setFormIcon(item.icon || 'developer_board');
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formSku || !formPrice) return;
 
-    onAddUpdateItem({
-      name: formName,
+    const payload = {
+      part_name: formName,
       sku: formSku,
       price: parseFloat(formPrice) || 0,
       category: formCategory,
-      stock: parseInt(formStock) || 0,
-      icon: formIcon
-    });
+      stock_level: parseInt(formStock) || 0,
+    };
+
+    if (formId) {
+      // Edit
+      const { error } = await supabase
+        .from("catalog")
+        .update(payload)
+        .eq("id", formId);
+      if (!error) {
+        await refreshInventory();
+      } else {
+        console.error("Error updating item", error);
+      }
+    } else {
+      // Add
+      const { error } = await supabase
+        .from("catalog")
+        .insert([payload]);
+      if (!error) {
+        await refreshInventory();
+      } else {
+        console.error("Error adding item", error);
+      }
+    }
 
     setIsModalOpen(false);
+  };
+
+  const handleDeleteItem = async (id: string) => {
+    if (confirm("Are you sure you want to delete this part?")) {
+      const { error } = await supabase
+        .from("catalog")
+        .delete()
+        .eq("id", id);
+      if (!error) {
+        await refreshInventory();
+      } else {
+        console.error("Error deleting item", error);
+      }
+    }
   };
 
   const handleFormCategoryChange = (catName: string) => {
@@ -100,10 +137,10 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
   };
 
   // Filter products list
-  const filteredItems = items.filter((item) => {
+  const filteredItems = inventory.filter((item) => {
     const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          item.sku.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (item.part_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (item.sku || "").toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -185,8 +222,8 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
               </tr>
             ) : (
               filteredItems.map((it) => {
-                const isOutOfStock = it.stock === 0;
-                const isLowStock = it.stock > 0 && it.stock <= 10;
+                const isOutOfStock = it.stock_level === 0;
+                const isLowStock = it.stock_level > 0 && it.stock_level <= 10;
                 return (
                   <tr
                     key={it.id}
@@ -195,13 +232,14 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
                     <td className="px-5 py-4 text-center shrink-0">
                       <div className="w-8 h-8 rounded bg-[#faf9f6] border border-[#dadad7] flex items-center justify-center text-[#585956] group-hover:bg-[#e6f4ea] group-hover:border-[#bccbb3] group-hover:text-[#0d6e00] transition-colors">
                         <span className="material-symbols-outlined text-base leading-none">
-                          {it.icon || "layers"}
+                          {/* Default icon based on category could be rendered here, but using 'hardware' as fallback */}
+                          hardware
                         </span>
                       </div>
                     </td>
 
                     <td className="px-5 py-4">
-                      <div className="font-semibold text-xs text-[#141514]">{it.name}</div>
+                      <div className="font-semibold text-xs text-[#141514]">{it.part_name}</div>
                       <div className="text-[10px] font-mono text-[#878884] mt-0.5">SKU: {it.sku}</div>
                     </td>
 
@@ -225,11 +263,11 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
                         ) : isLowStock ? (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#fffdf0] text-[#856404] border border-[#ffeeba]/50">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#f39c12] animate-pulse"></span>
-                            Critical: {it.stock} Left
+                            Critical: {it.stock_level} Left
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#e2f3df] text-[#137333] border border-[#bcdeb5]/50 font-mono">
-                            {it.stock} units
+                            {it.stock_level} units
                           </span>
                         )}
                         <span className="material-symbols-outlined text-[11px] text-[#b5b6b2]/60 select-none group-hover/stock:text-gray-600 transition-colors leading-none">edit</span>
@@ -242,7 +280,7 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
                       title="Click to edit price"
                     >
                       <div className="inline-flex items-center justify-end gap-1 group/price">
-                        <span>RM {it.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span>RM {Number(it.price || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                         <span className="material-symbols-outlined text-[11px] text-[#b5b6b2]/60 select-none group-hover/price:text-gray-600 transition-colors leading-none">edit</span>
                       </div>
                     </td>
@@ -257,11 +295,7 @@ export default function CatalogView({ items, onAddUpdateItem, onDeleteItem }: Ca
                           <span className="material-symbols-outlined text-sm font-semibold">edit</span>
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to delete ${it.name}?`)) {
-                              onDeleteItem(it.id);
-                            }
-                          }}
+                          onClick={() => handleDeleteItem(it.id)}
                           className="p-1 rounded text-red-450 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                           title="Delete Item"
                         >

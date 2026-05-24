@@ -10,10 +10,15 @@ import SettingsView from "./components/SettingsView";
 import AuthView from "./components/AuthView";
 
 import { ComponentItem, QuoteProposal, SupplierConfig, QuoteLineItem } from "./types";
+import { supabase } from "./context/InventoryContext";
+
+import { useInventory } from "./context/InventoryContext";
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
 
+  const { inventory } = useInventory();
+  
   // Specs Sub-flow State Tracker
   const [specsFlowState, setSpecsFlowState] = useState<"input" | "loading" | "verify" | "preview">("input");
 
@@ -26,9 +31,8 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [supplierNode, setSupplierNode] = useState("");
   const [supplierEmail, setSupplierEmail] = useState("");
+  const [userId, setUserId] = useState<string>("");
 
-  // Backend Synchronized Databases
-  const [catalog, setCatalog] = useState<ComponentItem[]>([]);
   const [quotes, setQuotes] = useState<QuoteProposal[]>([]);
   const [settings, setSettings] = useState<SupplierConfig>({
     companyName: "TechRigs Distribution Sdn Bhd",
@@ -38,112 +42,110 @@ export default function App() {
     customQuotePrefix: "TRD"
   });
 
-  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
-
   // 1. Initial Database Loading on Mount
   useEffect(() => {
     async function loadInitialData() {
-      try {
-        // Fetch Catalog
-        const catRes = await fetch("/api/catalog");
-        if (catRes.ok) {
-          const catData = await catRes.json();
-          setCatalog(catData);
+      // Helper: Fetch this user's settings row from Supabase
+      const loadUserSettings = async (uid: string) => {
+        const { data, error } = await supabase
+          .from('supplier_settings')
+          .select('*')
+          .eq('user_id', uid)
+          .single();
+        if (data && !error) {
+          setSettings({
+            companyName: data.company_name || "TechRigs Distribution Sdn Bhd",
+            contactNumber: data.contact_number || "+60 3-2142 0000",
+            supportEmail: data.support_email || "quotes@techrigs.com.my",
+            businessAddress: data.business_address || "Level 3, Plaza Low Yat, Bukit Bintang, 55100 Kuala Lumpur.",
+            customQuotePrefix: data.custom_quote_prefix || "TRD",
+          });
         }
+        // If no row yet, keep defaults — saved on first settings update
+      };
 
-        // Fetch Quotes
-        const quotesRes = await fetch("/api/quotes");
-        if (quotesRes.ok) {
-          const quotesData = await quotesRes.json();
-          setQuotes(quotesData);
+      // Helper: Fetch this user's quotes from Supabase
+      const loadUserQuotes = async (uid: string) => {
+        const { data, error } = await supabase
+          .from('quotes')
+          .select('*')
+          .eq('user_id', uid)
+          .order('created_at', { ascending: false });
+        if (data && !error) {
+          const mapped: QuoteProposal[] = data.map((row: any) => ({
+            id: row.id,
+            date: row.date,
+            customer: row.customer,
+            brief: row.brief,
+            total: row.total,
+            status: row.status,
+            items: row.items || [],
+            targetBudget: row.target_budget,
+            project: row.project,
+            contactNumber: row.contact_number,
+            supportEmail: row.support_email,
+            address: row.address,
+            quotePrefix: row.quote_prefix,
+          }));
+          setQuotes(mapped);
+        } else if (error) {
+          console.error('Error fetching quotes:', error);
         }
+      };
 
-        // Fetch Settings
-        const settingsRes = await fetch("/api/settings");
-        if (settingsRes.ok) {
-          const settingsData = await settingsRes.json();
-          setSettings(settingsData);
-        }
-      } catch (e) {
-        console.error("Failed to connect to back-end endpoints, working in offline-resilient mode.", e);
-        // Fallbacks are handled as our standard variables are set initially in state
-      } finally {
-        setIsLoadingCatalog(false);
+      // Supabase Authentication Check
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setIsAuthenticated(true);
+        setSupplierEmail(session.user.email || "");
+        setSupplierNode("Supplier Node (Supabase Authenticated)");
+        setUserId(session.user.id);
+        await loadUserSettings(session.user.id);
+        await loadUserQuotes(session.user.id);
       }
+
+      // Live Supabase Listener for auto-login/auto-logout
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === "SIGNED_IN" && session?.user) {
+          setIsAuthenticated(true);
+          setSupplierEmail(session.user.email || "");
+          setSupplierNode("Supplier Node (Supabase Authenticated)");
+          setUserId(session.user.id);
+          await loadUserSettings(session.user.id);
+          await loadUserQuotes(session.user.id);
+        } else if (event === "SIGNED_OUT") {
+          setIsAuthenticated(false);
+          setSupplierEmail("");
+          setSupplierNode("");
+          setUserId("");
+          setQuotes([]);
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
     }
     loadInitialData();
   }, []);
 
-  // Sync state functions back with Express Server
-  const handleAddUpdateCatalogItem = async (part: Partial<ComponentItem>) => {
-    try {
-      const res = await fetch("/api/catalog", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(part)
-      });
-      if (res.ok) {
-        const updatedItem = await res.json();
-        // Update local catalog state
-        setCatalog((prev) => {
-          const existingIdx = prev.findIndex((c) => c.sku === updatedItem.sku);
-          if (existingIdx > -1) {
-            const copy = [...prev];
-            copy[existingIdx] = updatedItem;
-            return copy;
-          }
-          return [...prev, updatedItem];
-        });
-      }
-    } catch (e) {
-      console.error("Failed to persist catalog update server-side.", e);
-      // Hard fallback locally to preserve user flow
-      setCatalog((prev) => {
-        const existingIdx = prev.findIndex((c) => c.sku === part.sku);
-        const demoItem: ComponentItem = {
-          id: part.id || `comp-demo-${Date.now()}`,
-          name: part.name || "Custom Component",
-          sku: part.sku || "CUSTOM-SKU",
-          price: part.price || 0,
-          category: part.category || "CPU",
-          icon: part.icon || "layers",
-          stock: part.stock || 0,
-          lastUpdated: "Just now"
-        };
-        if (existingIdx > -1) {
-          const copy = [...prev];
-          copy[existingIdx] = demoItem;
-          return copy;
-        }
-        return [...prev, demoItem];
-      });
-    }
-  };
-
-  const handleDeleteCatalogItem = async (id: string) => {
-    try {
-      const res = await fetch(`/api/catalog/${id}`, {
-        method: "DELETE"
-      });
-      if (res.ok) {
-        setCatalog((prev) => prev.filter((c) => c.id !== id));
-      }
-    } catch (e) {
-      console.error("Failed to delete catalog item server-side.", e);
-      setCatalog((prev) => prev.filter((c) => c.id !== id));
-    }
-  };
-
   const handleUpdateSettings = async (newConfig: SupplierConfig) => {
     setSettings(newConfig);
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newConfig)
-      });
-    } catch (e) {
-      console.error("Failed to sync settings server-side", e);
+    if (userId) {
+      const { error } = await supabase
+        .from('supplier_settings')
+        .upsert({
+          user_id: userId,
+          company_name: newConfig.companyName,
+          contact_number: newConfig.contactNumber,
+          support_email: newConfig.supportEmail,
+          business_address: newConfig.businessAddress,
+          custom_quote_prefix: newConfig.customQuotePrefix,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      if (error) {
+        console.error("Failed to sync settings to Supabase:", error);
+      }
     }
   };
 
@@ -173,14 +175,14 @@ export default function App() {
         console.error("Error synthesizing specification, applying safety rule configurations.", e);
         // Fallback safety to guarantee user experiences a gorgeous output if network lags
         setSynthProjectName("Enterprise Custom Workstation");
-         setSynthLineItems([
+           setSynthLineItems([
           {
-            component: catalog[0] || { id: "comp-1", name: "AMD Ryzen 7 7800X3D", sku: "AMD-R7-7800X3D", price: 1650, category: "CPU", icon: "developer_board", stock: 45, lastUpdated: "Today" },
+            component: inventory[0] || { id: "comp-1", name: "AMD Ryzen 7 7800X3D", sku: "AMD-R7-7800X3D", price: 1650, category: "CPU", icon: "developer_board", stock: 45, lastUpdated: "Today" },
             quantity: 1,
             rationale: "Fulfills primary concurrency parameters and guarantees maximum bandwidth allocation limits."
           },
           {
-            component: catalog[3] || { id: "comp-4", name: "Corsair Vengeance 32GB DDR5-6000", sku: "CR-VG-32G-6000", price: 520, category: "RAM", icon: "memory", stock: 80, lastUpdated: "Today" },
+            component: inventory[3] || { id: "comp-4", name: "Corsair Vengeance 32GB DDR5-6000", sku: "CR-VG-32G-6000", price: 520, category: "RAM", icon: "memory", stock: 80, lastUpdated: "Today" },
             quantity: 1,
             rationale: "Sustains optimal memory bandwidth, fully isolating workloads during burst calculations."
           }
@@ -197,49 +199,51 @@ export default function App() {
     setSpecsFlowState("preview");
   };
 
-  // 4. Save Quote proposal to system database
+  // 4. Save Quote proposal to Supabase
   const handleFinishSavingQuote = async (saveToHistory: boolean) => {
-    if (saveToHistory) {
+    if (saveToHistory && userId) {
       const computedTotal = synthLineItems.reduce((acc, cur) => acc + (cur.component.price * cur.quantity), 0);
-      const dataPayload = {
-        customer: "Neural Nexus Corp",
-        brief: synthProjectName,
-        total: computedTotal,
-        items: synthLineItems,
-        targetBudget: synthTargetBudget,
-        project: synthProjectName,
-        status: "Draft",
-        contactNumber: settings.contactNumber,
-        supportEmail: settings.supportEmail,
-        address: "67 Innovation Way, Austin, TX 78701"
-      };
+      const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-      try {
-        const res = await fetch("/api/quotes/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dataPayload)
-        });
-
-        if (res.ok) {
-          const createdProposal = await res.json();
-          setQuotes((prev) => [createdProposal, ...prev]);
-        }
-      } catch (e) {
-        console.error("Failed to save proposal to server history.", e);
-        // Fallback local persistence
-        const demoSaved: QuoteProposal = {
-          id: `q-demo-${Date.now()}`,
-          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      const { data, error } = await supabase
+        .from('quotes')
+        .insert({
+          user_id: userId,
+          date: dateStr,
           customer: "Neural Nexus Corp",
           brief: synthProjectName,
           total: computedTotal,
-          status: "Draft",
+          status: 'Draft',
           items: synthLineItems,
-          targetBudget: synthTargetBudget,
-          project: synthProjectName
+          target_budget: synthTargetBudget,
+          project: synthProjectName,
+          contact_number: settings.contactNumber,
+          support_email: settings.supportEmail,
+          address: "67 Innovation Way, Austin, TX 78701",
+          quote_prefix: settings.customQuotePrefix,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Failed to save quote to Supabase:", error);
+      } else if (data) {
+        const saved: QuoteProposal = {
+          id: data.id,
+          date: data.date,
+          customer: data.customer,
+          brief: data.brief,
+          total: data.total,
+          status: data.status,
+          items: data.items || [],
+          targetBudget: data.target_budget,
+          project: data.project,
+          contactNumber: data.contact_number,
+          supportEmail: data.support_email,
+          address: data.address,
+          quotePrefix: data.quote_prefix,
         };
-        setQuotes((prev) => [demoSaved, ...prev]);
+        setQuotes((prev) => [saved, ...prev]);
       }
     }
 
@@ -250,16 +254,14 @@ export default function App() {
 
   // 5. Auth handlers
   const handleAuthenticate = (company: string, email: string) => {
-    setIsAuthenticated(true);
-    setSupplierNode(company);
-    setSupplierEmail(email);
+    // Note: State changes are now mostly handled by the Supabase onAuthStateChange listener
+    // This function acts as a UI redirect fallback after successful submit in AuthView
     setCurrentTab("dashboard");
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setSupplierNode("");
-    setSupplierEmail("");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    // State clearing is handled automatically by the auth listener above
     setCurrentTab("dashboard");
   };
 
@@ -273,7 +275,7 @@ export default function App() {
   };
 
   // Calculate dynamic Low Stock alerts from catalog
-  const stockAlerts = catalog
+  const stockAlerts = inventory
     .filter((it) => it.stock <= 10)
     .map((it) => ({
       id: it.id,
@@ -310,7 +312,6 @@ export default function App() {
         {currentTab === "dashboard" && (
           <DashboardView
             quotes={quotes}
-            stockAlerts={stockAlerts}
             onNewQuoteClick={() => {
               setCurrentTab("specs");
               setSpecsFlowState("input");
@@ -336,7 +337,7 @@ export default function App() {
                 projectName={synthProjectName}
                 targetBudget={synthTargetBudget}
                 initialItems={synthLineItems}
-                allCatalogItems={catalog}
+                allCatalogItems={inventory}
                 onConfirm={handleConfirmVerification}
                 onDiscard={() => setSpecsFlowState("input")}
               />
@@ -357,11 +358,7 @@ export default function App() {
 
         {/* Render Catalog List Page */}
         {currentTab === "catalog" && (
-          <CatalogView
-            items={catalog}
-            onAddUpdateItem={handleAddUpdateCatalogItem}
-            onDeleteItem={handleDeleteCatalogItem}
-          />
+            <CatalogView />
         )}
 
         {/* Render Settings Page */}

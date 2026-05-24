@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { QuoteLineItem, ComponentItem } from "../types";
+import { QuoteLineItem, ComponentItem, ComponentCategory } from "../types";
+import { useInventory } from "../context/InventoryContext";
 
 interface SpecsVerifyViewProps {
   projectName: string;
@@ -18,6 +19,7 @@ export default function SpecsVerifyView({
   onConfirm,
   onDiscard
 }: SpecsVerifyViewProps) {
+  const { inventory } = useInventory();
   const [items, setItems] = useState<QuoteLineItem[]>(initialItems);
   const [editingProjectName, setEditingProjectName] = useState(projectName);
   const [swappingLineIdx, setSwappingLineIdx] = useState<number | null>(null);
@@ -188,9 +190,18 @@ export default function SpecsVerifyView({
 
         <div className="divide-y divide-[#dadad7]">
           {items.map((line, idx) => {
-            const alternatives = allCatalogItems.filter(
-              alt => alt.category === line.component.category && alt.id !== line.component.id
-            );
+            const alternatives = inventory
+              .filter(alt => alt.category === line.component.category && alt.id !== line.component.id)
+              .map(alt => ({
+                id: alt.id,
+                name: alt.part_name,
+                sku: alt.sku,
+                price: alt.price,
+                category: alt.category as ComponentCategory,
+                icon: 'memory',
+                stock: alt.stock_level,
+                lastUpdated: new Date().toISOString()
+              }));
 
             return (
               <div

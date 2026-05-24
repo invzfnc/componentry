@@ -1,15 +1,19 @@
 import React, { useState } from "react";
 import { QuoteProposal, StockAlert } from "../types";
+import { useInventory } from "../context/InventoryContext";
 
 interface DashboardViewProps {
   quotes: QuoteProposal[];
-  stockAlerts: StockAlert[];
   onNewQuoteClick: () => void;
   onViewQuote: (quote: QuoteProposal) => void;
   onNavigateToCatalog: () => void;
 }
 
-export default function DashboardView({ quotes, stockAlerts, onNewQuoteClick, onViewQuote, onNavigateToCatalog }: DashboardViewProps) {
+export default function DashboardView({ quotes, onNewQuoteClick, onViewQuote, onNavigateToCatalog }: DashboardViewProps) {
+  const { inventory } = useInventory();
+  
+  const lowStockItems = inventory.filter((item) => (item.stock_level ?? 0) < 10);
+
   const getStatusBadge = (status: string) => {
     // Map existing system values to ("Approved", "Draft", "Cancelled")
     let displayStatus = status;
@@ -180,29 +184,36 @@ export default function DashboardView({ quotes, stockAlerts, onNewQuoteClick, on
           </div>
 
           <div className="flex-1 overflow-y-auto mt-4 space-y-3">
-            {stockAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="flex items-start gap-3 p-3 rounded-lg bg-[#faf9f6] border border-[#dadad7] hover:border-[#bccbb3] transition-colors"
-              >
-                <div className="w-8 h-8 rounded-md bg-[#faeae8] border border-[#eba1a1] flex items-center justify-center text-[#8a1a1a] shrink-0">
-                  <span className="material-symbols-outlined text-base">{alert.icon}</span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-[#141514] truncate leading-snug">
-                    {alert.name}
-                  </p>
-                  <p className="text-[10px] font-mono text-[#585956] mt-0.5">
-                    SKU: {alert.sku}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="inline-flex px-1.5 py-0.5 bg-[#faeae8] text-[#8a1a1a] border border-[#eba1a1] text-[10px] font-bold rounded">
-                    {alert.stock} left
-                  </span>
-                </div>
+            {lowStockItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <span className="material-symbols-outlined text-3xl text-[#34a853] mb-2">check_circle</span>
+                <p className="text-sm font-semibold text-[#137333]">All stock levels optimal</p>
               </div>
-            ))}
+            ) : (
+              lowStockItems.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-[#faf9f6] border border-[#dadad7] hover:border-[#bccbb3] transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-md bg-[#faeae8] border border-[#eba1a1] flex items-center justify-center text-[#8a1a1a] shrink-0">
+                    <span className="material-symbols-outlined text-base">inventory_2</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[#141514] truncate leading-snug">
+                      {alert.part_name}
+                    </p>
+                    <p className="text-[10px] font-mono text-[#585956] mt-0.5">
+                      SKU: {alert.sku}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex px-1.5 py-0.5 bg-[#faeae8] text-[#8a1a1a] border border-[#eba1a1] text-[10px] font-bold rounded">
+                      {alert.stock_level} left
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Action button leading to Catalog */}

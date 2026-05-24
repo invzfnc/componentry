@@ -1,18 +1,20 @@
 import React, { useState } from "react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
+import { supabase } from "../context/InventoryContext";
 
 interface AuthViewProps {
   onAuthenticate: (company: string, email: string) => void;
 }
 
 export default function AuthView({ onAuthenticate }: AuthViewProps) {
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company.trim() || !email.trim() || !password) {
       setErrorMsg("All authentication credential parameters are required.");
@@ -22,10 +24,37 @@ export default function AuthView({ onAuthenticate }: AuthViewProps) {
     setErrorMsg("");
     setIsLoading(true);
 
-    setTimeout(() => {
+    if (isSignUpMode) {
+      // 1. Supabase Sign Up flow
+      const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+      });
+
       setIsLoading(false);
-      onAuthenticate(company, email);
-    }, 1500);
+
+      if (error) {
+        setErrorMsg(error.message);
+      } else {
+        // Success
+        onAuthenticate(company, email);
+      }
+    } else {
+      // 2. Supabase Sign In flow
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      setIsLoading(false);
+
+      if (error) {
+        setErrorMsg(error.message);
+      } else {
+        // Success
+        onAuthenticate(company, data.user?.email || email);
+      }
+    }
   };
 
   return (
@@ -163,16 +192,29 @@ export default function AuthView({ onAuthenticate }: AuthViewProps) {
             {isLoading ? (
               <>
                 <span className="material-symbols-outlined text-sm animate-spin">refresh</span>
-                <span>Authorizing Session Token...</span>
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-sm text-[#44d62c] group-hover:scale-110 transition-transform">verified_user</span>
-                <span>Establish Secure Session</span>
-              </>
-            )}
-          </button>
-        </form>
+                  <span>{isSignUpMode ? "Registering Node..." : "Authorizing Session Token..."}</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-sm text-[#44d62c] group-hover:scale-110 transition-transform">verified_user</span>
+                  <span>{isSignUpMode ? "Register New Identity" : "Establish Secure Session"}</span>
+                </>
+              )}
+            </button>
+
+            <div className="text-center mt-3">
+              <button 
+                type="button" 
+                onClick={() => {
+                  setErrorMsg("");
+                  setIsSignUpMode(!isSignUpMode);
+                }} 
+                className="text-[11px] font-semibold text-[#0d6e00] hover:underline cursor-pointer"
+              >
+                {isSignUpMode ? "Already a registered node? Sign In." : "Need to register a new identity? Sign Up."}
+              </button>
+            </div>
+          </form>
 
         <div className="border-t border-[#dadad7] pt-3 text-center">
           <p className="text-[9px] font-mono text-[#878884] uppercase tracking-wider">

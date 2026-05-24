@@ -1,14 +1,14 @@
-export type ComponentCategory = 'CPU' | 'GPU' | 'Motherboard' | 'RAM' | 'Storage' | 'PSU' | 'Cooling';
+export type ComponentCategory = 'CPU' | 'GPU' | 'Motherboard' | 'RAM' | 'Storage' | 'PSU' | 'Cooling' | 'Hardware';
 
 export interface ComponentItem {
   id: string;
   name: string;
+  part_name: string;
   sku: string;
   price: number;
   category: ComponentCategory;
-  icon: string; // Material symbols icon identifier
-  stock: number;
-  lastUpdated: string;
+  icon: string;
+  stock_level: number;
 }
 
 export interface QuoteLineItem {

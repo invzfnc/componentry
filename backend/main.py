@@ -170,25 +170,24 @@ def build_quote_response(req: QuoteRequest, result: dict, catalog: dict) -> dict
         random.choices(string.ascii_uppercase + string.digits, k=6)
     )
 
-    return {
+    response = {
         "quote_id": quote_id,
         "brief": req.brief,
         "budget": req.budget,
         "total": total,
         "savings": req.budget - total,
-        # mode is stamped by the agent onto result — it knows which prompt ran
         "mode": result.get("mode", "full"),
-        # warnings is non-empty when the agent returned its best imperfect build.
-        # The frontend should surface these as a visible caveat.
         "warnings": result.get("warnings", []),
-        # budget_shortfall is set when the cheapest possible build exceeds
-        # the stated budget. The frontend should prompt the customer to
-        # raise their budget by at least this amount.
         "budget_shortfall": result.get("budget_shortfall", 0),
         "existing_parts": req.existing_parts or {},
         "parts": enriched,
         "generated_at": time.strftime("%Y-%m-%d %H:%M")
     }
+
+    if "budget_warning" in result:
+        response["budget_warning"] = result["budget_warning"]
+
+    return response
 
 def _validate_quote_request(req: QuoteRequest) -> None:
     """

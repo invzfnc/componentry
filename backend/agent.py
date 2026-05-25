@@ -117,10 +117,6 @@ def _detect_mode(existing_parts: dict | None, target_categories: list[str] | Non
 
 
 def _check_hallucinated_ids(selected: dict, available: dict) -> list[str]:
-    """
-    Return a list of error strings for any selected ID that is not in the
-    available catalog.  These are hard errors — the model hallucinated an ID.
-    """
     bad = []
     for category, pid in selected.items():
         if pid not in available:
@@ -129,6 +125,28 @@ def _check_hallucinated_ids(selected: dict, available: dict) -> list[str]:
                 f"You MUST use an id that exists verbatim in the AVAILABLE CATALOG."
             )
     return bad
+
+
+def _generate_tier_warning(brief: str, budget: float, available: dict) -> dict:
+    prompt = f"""
+A client asked for: "{brief}"
+Their budget is RM {budget:,.0f}.
+The available catalog is: {json.dumps(available)}
+
+Their budget is too low to achieve their requested specs.
+Return ONLY valid JSON. No explanation, no markdown:
+{{
+  "message": "One sentence: why RM {budget:,.0f} cannot achieve what they asked for.",
+  "reason": "2-3 sentences explaining specifically which parts are too expensive (name them and their prices) and why the budget falls short.",
+  "suggested_budget": <minimum RM amount as a number to actually achieve the brief>
+}}
+"""
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+    )
+    cleaned = re.sub(r"```json|```", "", response.text).strip()
+    return json.loads(cleaned)
 
 
 def generate_quote(
@@ -141,30 +159,6 @@ def generate_quote(
     existing_parts: dict | None = None,
     target_categories: list[str] | None = None,
 ) -> dict:
-    """
-    Generate a quote.
-
-    Parameters
-    ----------
-    brief : str
-        Free-text client brief. May be long ("upgrade my GPU and RAM for 4K
-        gaming, keeping my RTX 5090") or very short ("just one RTX 5060").
-    budget : float
-        Maximum spend in RM. For partial quotes this caps the new parts only.
-    catalog : dict
-        Full product catalog keyed by product ID.
-    inventory : dict
-        Stock levels keyed by product ID.
-    on_status : callable, optional
-        SSE status callback; receives a dict with at least {"step", "message"}.
-    existing_parts : dict, optional
-        Parts the client already owns, keyed by category. Values are free-text
-        descriptions passed to the LLM as read-only context for compatibility.
-        Example: {"gpu": "NVIDIA RTX 5090", "ram": "Kingston Fury Beast DDR4 16GB"}
-    target_categories : list[str], optional
-        Categories the client explicitly wants to buy. If omitted, the LLM
-        infers from the brief which categories to quote.
-    """
 
     def emit(step: str, message: str, **extra):
         print(f"[{step}] {message}")
@@ -316,6 +310,21 @@ def generate_quote(
             if not errors:
                 emit("done", "All checks passed. Build is valid!", total=total)
                 result["mode"] = "full"
+
+                # Detect silent downgrade: brief asks for premium but build is budget tier
+                brief_lower = brief.lower()
+                premium_keywords = {"4k", "extreme", "top of the line", "best", "high-end",
+                                     "professional", "workstation", "rendering", "3d", "vr"}
+                brief_is_premium = any(kw in brief_lower for kw in premium_keywords)
+                build_tiers = [p.get("specs", {}).get("tier", "budget") for p in parts.values()]
+                build_is_budget = build_tiers.count("budget") >= 5
+
+                if brief_is_premium and build_is_budget:
+                    emit("warning", "Brief requested premium specs but budget only allows a budget build. Generating explanation...")
+                    tier_warning = _generate_tier_warning(brief, budget, available)
+                    result["budget_warning"] = tier_warning
+                    emit("warning", f"Suggested budget: RM {tier_warning.get('suggested_budget', 0):,.0f}")
+
                 return result
 
             # Within budget but imperfect — track as best candidate so far.

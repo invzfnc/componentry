@@ -58,3 +58,8 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #bccbb3;
 }
+
+@keyframes shrink {
+  0% { width: 100%; }
+  100% { width: 0%; }
+}

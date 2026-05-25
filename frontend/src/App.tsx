@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import DashboardView from "./components/DashboardView";
 import SpecsInputView from "./components/SpecsInputView";
@@ -32,6 +32,17 @@ export default function App() {
   const [supplierNode, setSupplierNode] = useState("");
   const [supplierEmail, setSupplierEmail] = useState("");
   const [userId, setUserId] = useState<string>("");
+
+  // Welcome screen shown after new registration (full-page, blocks dashboard)
+  const [welcomePending, setWelcomePending] = useState(false);
+  const [welcomeCompany, setWelcomeCompany] = useState("");
+
+  // Auto-dismiss welcome screen after 3 seconds
+  useEffect(() => {
+    if (!welcomePending) return;
+    const t = setTimeout(() => setWelcomePending(false), 3000);
+    return () => clearTimeout(t);
+  }, [welcomePending]);
 
   const [quotes, setQuotes] = useState<QuoteProposal[]>([]);
   const [settings, setSettings] = useState<SupplierConfig>({
@@ -253,10 +264,12 @@ export default function App() {
   };
 
   // 5. Auth handlers
-  const handleAuthenticate = (company: string, email: string) => {
-    // Note: State changes are now mostly handled by the Supabase onAuthStateChange listener
-    // This function acts as a UI redirect fallback after successful submit in AuthView
+  const handleAuthenticate = (company: string, email: string, isNewUser?: boolean) => {
     setCurrentTab("dashboard");
+    if (isNewUser) {
+      setWelcomeCompany(company);
+      setWelcomePending(true);
+    }
   };
 
   const handleLogout = async () => {
@@ -287,6 +300,50 @@ export default function App() {
 
   if (!isAuthenticated) {
     return <AuthView onAuthenticate={handleAuthenticate} />;
+  }
+
+  // Full-page welcome screen — dashboard does NOT render until this is dismissed
+  if (welcomePending) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center bg-[#faf9f6] relative overflow-hidden">
+        {/* Ambient glow */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-[600px] h-[600px] rounded-full blur-[120px] opacity-40"
+            style={{ background: "radial-gradient(circle, rgba(13,110,0,0.12) 0%, rgba(188,222,181,0.2) 50%, transparent 80%)" }}
+          />
+        </div>
+        {/* Card */}
+        <div className="relative z-10 bg-white rounded-2xl border border-[#dadad7]/60 shadow-2xl p-10 max-w-sm w-full mx-4 flex flex-col items-center text-center gap-6">
+          {/* Icon */}
+          <div className="w-20 h-20 rounded-2xl bg-[#e2f3df] border-2 border-[#bcdeb5] flex items-center justify-center text-[#0d6e00]">
+            <span className="material-symbols-outlined text-4xl">verified</span>
+          </div>
+          {/* Text */}
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-[#141514] tracking-tight">Account Created!</h2>
+            <p className="text-[13px] text-[#585956] leading-relaxed">
+              Welcome, <span className="font-semibold text-[#141514]">{welcomeCompany}</span>!<br />
+              Your supplier account is ready.<br />
+              You have been signed in automatically.
+            </p>
+          </div>
+          {/* Progress bar */}
+          <div className="w-full space-y-2">
+            <p className="text-[11px] text-[#878884] font-semibold tracking-wide uppercase">Entering dashboard in 3s...</p>
+            <div className="w-full h-1.5 bg-[#e8e8e5] rounded-full overflow-hidden">
+              <div className="h-full bg-[#0d6e00] rounded-full" style={{ animation: "shrink 3s linear forwards" }} />
+            </div>
+          </div>
+          {/* Skip */}
+          <button
+            onClick={() => setWelcomePending(false)}
+            className="text-[12px] font-semibold text-[#0d6e00] hover:underline cursor-pointer"
+          >
+            Enter dashboard now →
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

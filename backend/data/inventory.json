@@ -1,0 +1,43 @@
+{
+  "cpu-001": { "stock": 12 },
+  "cpu-002": { "stock": 7  },
+  "cpu-003": { "stock": 4  },
+  "cpu-004": { "stock": 9  },
+  "cpu-005": { "stock": 5  },
+  "cpu-006": { "stock": 0  },
+
+  "mb-001": { "stock": 8  },
+  "mb-002": { "stock": 6  },
+  "mb-003": { "stock": 3  },
+  "mb-004": { "stock": 10 },
+  "mb-005": { "stock": 4  },
+  "mb-006": { "stock": 0  },
+
+  "gpu-001": { "stock": 14 },
+  "gpu-002": { "stock": 8  },
+  "gpu-003": { "stock": 6  },
+  "gpu-004": { "stock": 3  },
+  "gpu-005": { "stock": 2  },
+  "gpu-006": { "stock": 0  },
+
+  "ram-001": { "stock": 20 },
+  "ram-002": { "stock": 15 },
+  "ram-003": { "stock": 9  },
+  "ram-004": { "stock": 3  },
+
+  "storage-001": { "stock": 18 },
+  "storage-002": { "stock": 11 },
+  "storage-003": { "stock": 5  },
+
+  "psu-001": { "stock": 10 },
+  "psu-002": { "stock": 7  },
+  "psu-003": { "stock": 4  },
+
+  "cooler-001": { "stock": 13 },
+  "cooler-002": { "stock": 6  },
+  "cooler-003": { "stock": 0  },
+
+  "case-001": { "stock": 11 },
+  "case-002": { "stock": 7  },
+  "case-003": { "stock": 4  }
+}

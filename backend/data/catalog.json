@@ -1,0 +1,401 @@
+{
+  "cpu-001": {
+    "id": "cpu-001",
+    "name": "AMD Ryzen 5 7600",
+    "category": "cpu",
+    "price": 899,
+    "specs": {
+      "socket": "AM5",
+      "tdp": 65,
+      "cores": 6,
+      "tier": "budget"
+    }
+  },
+  "cpu-002": {
+    "id": "cpu-002",
+    "name": "AMD Ryzen 7 7700X",
+    "category": "cpu",
+    "price": 1599,
+    "specs": {
+      "socket": "AM5",
+      "tdp": 105,
+      "cores": 8,
+      "tier": "mid"
+    }
+  },
+  "cpu-003": {
+    "id": "cpu-003",
+    "name": "AMD Ryzen 9 7900X",
+    "category": "cpu",
+    "price": 2199,
+    "specs": {
+      "socket": "AM5",
+      "tdp": 170,
+      "cores": 12,
+      "tier": "high"
+    }
+  },
+  "cpu-004": {
+    "id": "cpu-004",
+    "name": "Intel Core i5-13600K",
+    "category": "cpu",
+    "price": 1099,
+    "specs": {
+      "socket": "LGA1700",
+      "tdp": 125,
+      "cores": 14,
+      "tier": "budget"
+    }
+  },
+  "cpu-005": {
+    "id": "cpu-005",
+    "name": "Intel Core i7-13700K",
+    "category": "cpu",
+    "price": 1799,
+    "specs": {
+      "socket": "LGA1700",
+      "tdp": 125,
+      "cores": 16,
+      "tier": "mid"
+    }
+  },
+  "cpu-006": {
+    "id": "cpu-006",
+    "name": "Intel Core i9-13900K",
+    "category": "cpu",
+    "price": 2799,
+    "specs": {
+      "socket": "LGA1700",
+      "tdp": 253,
+      "cores": 24,
+      "tier": "high"
+    }
+  },
+
+  "mb-001": {
+    "id": "mb-001",
+    "name": "ASUS Prime B650M-A",
+    "category": "motherboard",
+    "price": 599,
+    "specs": {
+      "socket": "AM5",
+      "ram_type": "DDR5",
+      "form_factor": "mATX",
+      "tier": "budget"
+    }
+  },
+  "mb-002": {
+    "id": "mb-002",
+    "name": "MSI MAG B650 Tomahawk WiFi",
+    "category": "motherboard",
+    "price": 999,
+    "specs": {
+      "socket": "AM5",
+      "ram_type": "DDR5",
+      "form_factor": "ATX",
+      "tier": "mid"
+    }
+  },
+  "mb-003": {
+    "id": "mb-003",
+    "name": "ASUS ROG Strix X670E-F Gaming",
+    "category": "motherboard",
+    "price": 1799,
+    "specs": {
+      "socket": "AM5",
+      "ram_type": "DDR5",
+      "form_factor": "ATX",
+      "tier": "high"
+    }
+  },
+  "mb-004": {
+    "id": "mb-004",
+    "name": "Gigabyte B760M DS3H",
+    "category": "motherboard",
+    "price": 499,
+    "specs": {
+      "socket": "LGA1700",
+      "ram_type": "DDR4",
+      "form_factor": "mATX",
+      "tier": "budget"
+    }
+  },
+  "mb-005": {
+    "id": "mb-005",
+    "name": "MSI MAG Z790 Tomahawk WiFi",
+    "category": "motherboard",
+    "price": 1199,
+    "specs": {
+      "socket": "LGA1700",
+      "ram_type": "DDR5",
+      "form_factor": "ATX",
+      "tier": "mid"
+    }
+  },
+  "mb-006": {
+    "id": "mb-006",
+    "name": "ASUS ROG Maximus Z790 Hero",
+    "category": "motherboard",
+    "price": 2499,
+    "specs": {
+      "socket": "LGA1700",
+      "ram_type": "DDR5",
+      "form_factor": "ATX",
+      "tier": "high"
+    }
+  },
+
+  "gpu-001": {
+    "id": "gpu-001",
+    "name": "NVIDIA RTX 4060",
+    "category": "gpu",
+    "price": 1399,
+    "specs": {
+      "tdp": 115,
+      "vram_gb": 8,
+      "resolution_target": "1080p",
+      "tier": "budget"
+    }
+  },
+  "gpu-002": {
+    "id": "gpu-002",
+    "name": "NVIDIA RTX 4060 Ti",
+    "category": "gpu",
+    "price": 1899,
+    "specs": {
+      "tdp": 165,
+      "vram_gb": 8,
+      "resolution_target": "1080p",
+      "tier": "budget"
+    }
+  },
+  "gpu-003": {
+    "id": "gpu-003",
+    "name": "NVIDIA RTX 4070",
+    "category": "gpu",
+    "price": 2399,
+    "specs": {
+      "tdp": 200,
+      "vram_gb": 12,
+      "resolution_target": "1440p",
+      "tier": "mid"
+    }
+  },
+  "gpu-004": {
+    "id": "gpu-004",
+    "name": "NVIDIA RTX 4070 Ti Super",
+    "category": "gpu",
+    "price": 3199,
+    "specs": {
+      "tdp": 285,
+      "vram_gb": 16,
+      "resolution_target": "1440p",
+      "tier": "mid"
+    }
+  },
+  "gpu-005": {
+    "id": "gpu-005",
+    "name": "NVIDIA RTX 4080 Super",
+    "category": "gpu",
+    "price": 4299,
+    "specs": {
+      "tdp": 320,
+      "vram_gb": 16,
+      "resolution_target": "4K",
+      "tier": "high"
+    }
+  },
+  "gpu-006": {
+    "id": "gpu-006",
+    "name": "NVIDIA RTX 4090",
+    "category": "gpu",
+    "price": 6999,
+    "specs": {
+      "tdp": 450,
+      "vram_gb": 24,
+      "resolution_target": "4K",
+      "tier": "high"
+    }
+  },
+
+  "ram-001": {
+    "id": "ram-001",
+    "name": "Kingston Fury Beast DDR4 16GB (2x8GB) 3200MHz",
+    "category": "ram",
+    "price": 179,
+    "specs": {
+      "type": "DDR4",
+      "capacity_gb": 16,
+      "tier": "budget"
+    }
+  },
+  "ram-002": {
+    "id": "ram-002",
+    "name": "Kingston Fury Beast DDR5 16GB (2x8GB) 5200MHz",
+    "category": "ram",
+    "price": 299,
+    "specs": {
+      "type": "DDR5",
+      "capacity_gb": 16,
+      "tier": "budget"
+    }
+  },
+  "ram-003": {
+    "id": "ram-003",
+    "name": "G.Skill Trident Z5 DDR5 32GB (2x16GB) 6000MHz",
+    "category": "ram",
+    "price": 599,
+    "specs": {
+      "type": "DDR5",
+      "capacity_gb": 32,
+      "tier": "mid"
+    }
+  },
+  "ram-004": {
+    "id": "ram-004",
+    "name": "Corsair Vengeance DDR5 64GB (2x32GB) 5600MHz",
+    "category": "ram",
+    "price": 1099,
+    "specs": {
+      "type": "DDR5",
+      "capacity_gb": 64,
+      "tier": "high"
+    }
+  },
+
+  "storage-001": {
+    "id": "storage-001",
+    "name": "Kingston NV2 NVMe SSD 500GB",
+    "category": "storage",
+    "price": 149,
+    "specs": {
+      "type": "NVMe",
+      "capacity_gb": 500,
+      "tier": "budget"
+    }
+  },
+  "storage-002": {
+    "id": "storage-002",
+    "name": "Samsung 980 Pro NVMe SSD 1TB",
+    "category": "storage",
+    "price": 349,
+    "specs": {
+      "type": "NVMe",
+      "capacity_gb": 1000,
+      "tier": "mid"
+    }
+  },
+  "storage-003": {
+    "id": "storage-003",
+    "name": "Samsung 990 Pro NVMe SSD 2TB",
+    "category": "storage",
+    "price": 649,
+    "specs": {
+      "type": "NVMe",
+      "capacity_gb": 2000,
+      "tier": "high"
+    }
+  },
+
+  "psu-001": {
+    "id": "psu-001",
+    "name": "Cooler Master MWE Bronze 650W",
+    "category": "psu",
+    "price": 299,
+    "specs": {
+      "wattage": 650,
+      "rating": "80+ Bronze",
+      "tier": "budget"
+    }
+  },
+  "psu-002": {
+    "id": "psu-002",
+    "name": "Seasonic Focus GX-750 750W",
+    "category": "psu",
+    "price": 499,
+    "specs": {
+      "wattage": 750,
+      "rating": "80+ Gold",
+      "tier": "mid"
+    }
+  },
+  "psu-003": {
+    "id": "psu-003",
+    "name": "Corsair RM1000x 1000W",
+    "category": "psu",
+    "price": 799,
+    "specs": {
+      "wattage": 1000,
+      "rating": "80+ Gold",
+      "tier": "high"
+    }
+  },
+
+  "cooler-001": {
+    "id": "cooler-001",
+    "name": "Cooler Master Hyper 212 Black Edition",
+    "category": "cooler",
+    "price": 149,
+    "specs": {
+      "tdp_capacity": 150,
+      "socket_support": ["AM5", "AM4", "LGA1700", "LGA1200"],
+      "type": "air",
+      "tier": "budget"
+    }
+  },
+  "cooler-002": {
+    "id": "cooler-002",
+    "name": "Noctua NH-D15",
+    "category": "cooler",
+    "price": 449,
+    "specs": {
+      "tdp_capacity": 250,
+      "socket_support": ["AM5", "AM4", "LGA1700", "LGA1200"],
+      "type": "air",
+      "tier": "mid"
+    }
+  },
+  "cooler-003": {
+    "id": "cooler-003",
+    "name": "Corsair iCUE H150i Elite 360mm AIO",
+    "category": "cooler",
+    "price": 699,
+    "specs": {
+      "tdp_capacity": 350,
+      "socket_support": ["AM5", "AM4", "LGA1700", "LGA1200"],
+      "type": "aio",
+      "tier": "high"
+    }
+  },
+
+  "case-001": {
+    "id": "case-001",
+    "name": "Cooler Master MasterBox Q300L",
+    "category": "case",
+    "price": 199,
+    "specs": {
+      "form_factor": "mATX",
+      "tier": "budget"
+    }
+  },
+  "case-002": {
+    "id": "case-002",
+    "name": "Lian Li Lancool 216",
+    "category": "case",
+    "price": 399,
+    "specs": {
+      "form_factor": "ATX",
+      "tier": "mid"
+    }
+  },
+  "case-003": {
+    "id": "case-003",
+    "name": "Fractal Design Torrent",
+    "category": "case",
+    "price": 699,
+    "specs": {
+      "form_factor": "ATX",
+      "tier": "high"
+    }
+  }
+}

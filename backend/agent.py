@@ -220,12 +220,17 @@ def generate_quote(
             f"Every product_id in 'selected' must be a key from AVAILABLE CATALOG above."
         )
 
-    # best_candidate tracks the least-flawed within-budget result seen so far,
-    # so we can always return something useful even if no perfect build is found.
+    # best_candidate  — least-flawed within-budget result seen across attempts.
+    # cheapest_over   — lowest-cost over-budget result, used as fallback when
+    #                   the budget can never be met by any available build.
     best_candidate: dict | None = None
+    cheapest_over:  dict | None = None
 
     def _is_better(new_errors: list) -> bool:
         return best_candidate is None or len(new_errors) < len(best_candidate["errors"])
+
+    def _is_cheaper_over(new_total: float) -> bool:
+        return cheapest_over is None or new_total < cheapest_over["total"]
 
     for attempt in range(3):
 
@@ -283,7 +288,9 @@ def generate_quote(
         if total > budget:
             overage = total - budget
             emit("budget", f"Over budget by RM {overage:,.0f}. Retrying with cheaper parts.", overage=overage)
-            # Over-budget results are not tracked — the price ceiling is hard.
+            # Track the cheapest over-budget build as a last-resort fallback.
+            if _is_cheaper_over(total):
+                cheapest_over = {"result": result, "total": total}
             user_message += (
                 f"\n\nBudget exceeded by RM {overage:,.0f} "
                 f"(total RM {total:,.0f}, limit RM {budget:,.0f}). Choose cheaper parts."
@@ -323,22 +330,36 @@ def generate_quote(
             return result
 
     # ------------------------------------------------------------------
-    # All attempts exhausted without a perfect build.
-    # Return the best within-budget candidate found, flagged with its
-    # remaining issues so the frontend can surface a clear warning.
-    # Only raise if every attempt hallucinated IDs or busted the budget
-    # (i.e. nothing usable was ever produced).
+    # All attempts exhausted. Priority order for what to return:
+    #   1. Best within-budget build (may have compat warnings)
+    #   2. Cheapest over-budget build (budget_shortfall tells frontend
+    #      how much more the customer needs to spend)
+    #   3. Raise — every attempt hallucinated or produced nothing usable
     # ------------------------------------------------------------------
-    if best_candidate is None:
-        raise ValueError("Could not generate a usable build after 3 attempts.")
+    if best_candidate is not None:
+        best_result = best_candidate["result"]
+        best_errors = best_candidate["errors"]
+        emit(
+            "done",
+            f"Returning best available build with {len(best_errors)} unresolved compatibility issue(s).",
+            warnings=best_errors,
+        )
+        best_result["mode"] = "full"
+        best_result["warnings"] = best_errors
+        return best_result
 
-    best_result = best_candidate["result"]
-    best_errors = best_candidate["errors"]
-    emit(
-        "done",
-        f"Returning best available build with {len(best_errors)} unresolved compatibility issue(s).",
-        warnings=best_errors,
-    )
-    best_result["mode"] = "full"
-    best_result["warnings"] = best_errors
-    return best_result
+    if cheapest_over is not None:
+        over_result = cheapest_over["result"]
+        over_total  = cheapest_over["total"]
+        shortfall   = round(over_total - budget, 2)
+        emit(
+            "done",
+            f"Budget too low. Cheapest available build is RM {over_total:,.0f} "
+            f"(RM {shortfall:,.0f} over budget).",
+            budget_shortfall=shortfall,
+        )
+        over_result["mode"] = "full"
+        over_result["budget_shortfall"] = shortfall
+        return over_result
+
+    raise ValueError("Could not generate a usable build after 3 attempts.")

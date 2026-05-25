@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { QuoteLineItem, ComponentItem, ComponentCategory } from "../types";
 import { useInventory } from "../context/InventoryContext";
+import { checkCompatibility } from "../services/pythonApi";
+import { ICON_MAP, displayName, hasSpecs } from "../services/quoteAdapter";
 
 interface SpecsVerifyViewProps {
   projectName: string;
@@ -28,7 +30,9 @@ export default function SpecsVerifyView({
   const [isDirty, setIsDirty] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<'unverified' | 'compatible' | 'incompatible'>('unverified');
-  const [verifyCount, setVerifyCount] = useState(0);
+  const [verificationMessages, setVerificationMessages] = useState<string[]>([]);
+  const [verificationSummary, setVerificationSummary] = useState("");
+  const [verificationChecks, setVerificationChecks] = useState<Array<{ label: string; status: string; message: string }>>([]);
   const [swappedItemIndex, setSwappedItemIndex] = useState<number | null>(null);
 
   // Calculate stats
@@ -46,6 +50,8 @@ export default function SpecsVerifyView({
     // Set dirty state upon modify
     setIsDirty(true);
     setVerificationStatus('unverified');
+    setVerificationSummary("");
+    setVerificationChecks([]);
     setSwappedItemIndex(idx);
   };
 
@@ -63,23 +69,36 @@ export default function SpecsVerifyView({
     // Set dirty state upon swap
     setIsDirty(true);
     setVerificationStatus('unverified');
+    setVerificationSummary("");
+    setVerificationChecks([]);
     setSwappedItemIndex(lineIdx);
   };
 
   // Live Verification Trigger
-  const handleVerifyChanges = () => {
+  const handleVerifyChanges = async () => {
     setIsVerifying(true);
-    setTimeout(() => {
+    setVerificationMessages([]);
+    setVerificationSummary("");
+    setVerificationChecks([]);
+    try {
+      const result = await checkCompatibility(items);
       setIsVerifying(false);
-      // Alternative states cycle to allow full verification testing
-      const nextCount = verifyCount + 1;
-      setVerifyCount(nextCount);
-      if (nextCount % 2 === 1) {
-        setVerificationStatus('incompatible');
-      } else {
+      setVerificationMessages([...result.errors, ...result.warnings]);
+      setVerificationSummary(result.summary || "");
+      setVerificationChecks(result.checks || []);
+      if (result.compatible) {
         setVerificationStatus('compatible');
+      } else {
+        setVerificationStatus('incompatible');
       }
-    }, 1200);
+    } catch (error) {
+      console.error("Compatibility verification failed:", error);
+      setIsVerifying(false);
+      setVerificationMessages(["Could not reach the Python compatibility checker."]);
+      setVerificationSummary("");
+      setVerificationChecks([]);
+      setVerificationStatus('incompatible');
+    }
   };
 
   return (
@@ -108,7 +127,7 @@ export default function SpecsVerifyView({
             Discard
           </button>
 
-          {/* Trigger AI Verification logic if modified, else confirm direkt */}
+          {/* Trigger backend compatibility verification if modified, else confirm direkt */}
           {isDirty && verificationStatus !== 'compatible' ? (
             <button
               onClick={handleVerifyChanges}
@@ -118,12 +137,12 @@ export default function SpecsVerifyView({
               {isVerifying ? (
                 <>
                   <span className="material-symbols-outlined text-sm animate-spin">refresh</span>
-                  <span>Simulating power draw...</span>
+                  <span>Checking compatibility...</span>
                 </>
               ) : (
                 <>
                   <span className="material-symbols-outlined text-sm">offline_bolt</span>
-                  <span>⚠️ AI Verify Changes</span>
+                  <span>Verify Changes</span>
                 </>
               )}
             </button>
@@ -195,12 +214,14 @@ export default function SpecsVerifyView({
               .map(alt => ({
                 id: alt.id,
                 name: alt.part_name,
+                part_name: alt.part_name,
                 sku: alt.sku,
                 price: alt.price,
                 category: alt.category as ComponentCategory,
-                icon: 'memory',
+                icon: alt.icon || ICON_MAP[alt.category] || 'hardware',
                 stock: alt.stock_level,
-                lastUpdated: new Date().toISOString()
+                stock_level: alt.stock_level,
+                specs: alt.specs || {},
               }));
 
             return (
@@ -223,7 +244,7 @@ export default function SpecsVerifyView({
                         </span>
                         <span className="text-[10px] font-mono text-[#878884]">SKU: {line.component.sku}</span>
                       </div>
-                      <p className="font-sans font-bold text-sm text-[#141514]">{line.component.name}</p>
+                      <p className="font-sans font-bold text-sm text-[#141514]">{displayName(line.component)}</p>
 
                       {/* AI Rationale block */}
                       {line.rationale && (
@@ -299,7 +320,7 @@ export default function SpecsVerifyView({
                                       className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#dadad7] hover:border-[#0d6e00] hover:bg-[#faf9f6] text-left transition-all cursor-pointer"
                                     >
                                       <div className="min-w-0 pr-2">
-                                        <p className="text-xs font-bold text-[#141514] truncate">{alt.name}</p>
+                                        <p className="text-xs font-bold text-[#141514] truncate">{alt.part_name}</p>
                                         <p className="text-[10px] font-mono text-[#585956] mt-0.5">SKU: {alt.sku}</p>
                                       </div>
                                       <div className="text-right shrink-0">
@@ -327,7 +348,7 @@ export default function SpecsVerifyView({
                       <div className="flex items-center gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
                         <span className="material-symbols-outlined text-base animate-pulse text-amber-600">report_problem</span>
                         <p className="font-medium">
-                          Component selection altered. Run <strong className="font-semibold text-amber-950">AI Verify Changes</strong> above to analyze thermal compatibility and voltage regulations.
+                          Component selection altered. Run <strong className="font-semibold text-amber-950">Verify Changes</strong> above to check socket, memory, power, cooling, and case compatibility.
                         </p>
                       </div>
                     )}
@@ -336,59 +357,48 @@ export default function SpecsVerifyView({
                       <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-xs space-y-2.5">
                         <div className="flex items-start gap-2.5 text-red-800">
                           <span className="material-symbols-outlined text-base text-red-600 shrink-0 mt-0.5">cancel</span>
-                          <p className="font-semibold leading-relaxed">
-                            Incompatible: The selected NVIDIA RTX 4090 requires a minimum 850W PSU. Current PSU is 650W. Suggestion: Upgrade to Corsair RM850x.
-                          </p>
+                          <div className="font-semibold leading-relaxed space-y-1">
+                            {(verificationMessages.length ? verificationMessages : ["Compatibility check found an issue with the selected parts."]).map((message) => (
+                              <p key={message}>{message}</p>
+                            ))}
+                          </div>
                         </div>
                         <div className="pl-7">
                           <button
                             onClick={() => {
-                              // Auto-Correction path: Upgrade current PSU setup to high performance unit
                               const updated = [...items];
                               const psuIdx = updated.findIndex(it => it.component.category === "PSU");
-                              const targetPSU = allCatalogItems.find(it => it.category === "PSU" && it.price > 1000) 
-                                || allCatalogItems.find(it => it.category === "PSU")
-                                || {
-                                  id: "comp-8",
-                                  name: "Corsair RM850x Gold Modular PSU",
-                                  sku: "CR-RM850X",
-                                  price: 650,
-                                  category: "PSU" as const,
-                                  icon: "power"
-                                };
+                              const targetPSU = allCatalogItems
+                                .filter(it => it.category === "PSU")
+                                .sort((a, b) => Number(b.price || 0) - Number(a.price || 0))[0];
+
+                              if (!targetPSU) return;
 
                               if (psuIdx > -1) {
                                 updated[psuIdx] = {
                                   ...updated[psuIdx],
-                                  component: {
-                                    ...targetPSU,
-                                    name: "Corsair RM850x Gold Modular PSU",
-                                    price: 650,
-                                    sku: "CR-RM850X"
-                                  },
-                                  rationale: "Automatically upgraded to provide reliable electrical margins and satisfy RTX 4090 power requirements."
+                                  component: targetPSU,
+                                  rationale: "Automatically upgraded to the strongest available PSU in the Supabase catalog."
                                 };
                               } else {
                                 updated.push({
-                                  component: {
-                                    id: "comp-psu-auto",
-                                    name: "Corsair RM850x Gold Modular PSU",
-                                    sku: "CR-RM850X",
-                                    price: 650,
-                                    category: "PSU" as const,
-                                    icon: "power"
-                                  },
+                                  component: targetPSU,
                                   quantity: 1,
-                                  rationale: "Required high capacity power supply to handle the peak workloads of the graphics array."
+                                  rationale: "Added the strongest available PSU in the Supabase catalog."
                                 });
                               }
                               setItems(updated);
-                              setVerificationStatus('compatible');
+                              setIsDirty(true);
+                              setVerificationStatus('unverified');
+                              setVerificationMessages([]);
+                              setVerificationSummary("");
+                              setVerificationChecks([]);
+                              setSwappedItemIndex(psuIdx > -1 ? psuIdx : updated.length - 1);
                             }}
                             className="px-3 py-1.5 bg-red-600 text-white rounded font-bold hover:bg-red-700 transition-colors flex items-center gap-1 cursor-pointer text-[11px]"
                           >
                             <span className="material-symbols-outlined text-[14px]">tune</span>
-                            <span>Auto-Upgrade to Corsair RM850x (RM 650.00)</span>
+                            <span>Auto-Select Strongest Catalog PSU</span>
                           </button>
                         </div>
                       </div>
@@ -397,9 +407,22 @@ export default function SpecsVerifyView({
                     {verificationStatus === 'compatible' && (
                       <div className="flex items-start gap-2.5 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800">
                         <span className="material-symbols-outlined text-base text-green-600 shrink-0 mt-0.5">check_circle</span>
-                        <p className="font-semibold leading-relaxed">
-                          AI Verified: Power draw and socket type are within safe limits. Minor bottleneck expected at 4K resolution.
-                        </p>
+                        <div>
+                          <p className="font-semibold leading-relaxed">
+                            {hasSpecs(line.component.specs)
+                              ? (verificationSummary || "Compatibility verification passed.")
+                              : "The selected component needs catalog specs before compatibility can be fully verified."}
+                          </p>
+                          {verificationChecks.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                              {verificationChecks.map((check) => (
+                                <p key={`${check.label}-${check.message}`} className="text-[11px] font-medium leading-relaxed">
+                                  <span className="font-bold">{check.label}:</span> {check.message}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

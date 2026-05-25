@@ -1,22 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 
-export default function SpecsProcessingView() {
-  const [statusIdx, setStatusIdx] = useState(0);
-  const loadingTexts = [
-    "Reading requirements...",
-    "Searching live component catalog...",
-    "Validating engineering compatibility rules...",
-    "Adjusting within proposed budget threshold...",
-    "Synthesizing optimal hardware specifications...",
-    "Constructing custom AI rationales..."
-  ];
+interface SpecsProcessingViewProps {
+  statusMessage?: string;
+}
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setStatusIdx((prev) => (prev + 1) % loadingTexts.length);
-    }, 1800);
-    return () => clearInterval(timer);
-  }, [loadingTexts.length]);
+export default function SpecsProcessingView({ statusMessage }: SpecsProcessingViewProps) {
+  const message = statusMessage || "Connecting to AI quote engine...";
 
   return (
     <div className="blueprint-grid min-h-[500px] w-full rounded-2xl border border-[#dadad7] bg-[#fbfbfa] flex flex-col justify-between p-6 relative overflow-hidden shadow-[inset_0_2px_15px_rgba(0,0,0,0.02)]">
@@ -51,7 +40,7 @@ export default function SpecsProcessingView() {
         <div className="text-center space-y-2 max-w-sm">
           <div className="h-6 flex items-center justify-center">
             <p className="font-display font-bold text-sm text-[#141514] tracking-tight">
-              {loadingTexts[statusIdx]}
+              {message}
             </p>
           </div>
           
@@ -78,7 +67,7 @@ export default function SpecsProcessingView() {
           <span className="mx-2">·</span>
           <span>TOKENS: 4,096/s</span>
           <span className="mx-2">·</span>
-          <span>MODEL: GEMINI-3.5-FLASH</span>
+          <span>MODEL: GEMINI-2.5-FLASH</span>
         </div>
       </div>
     </div>

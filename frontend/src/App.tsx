@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import DashboardView from "./components/DashboardView";
 import SpecsInputView from "./components/SpecsInputView";
@@ -9,15 +9,17 @@ import CatalogView from "./components/CatalogView";
 import SettingsView from "./components/SettingsView";
 import AuthView from "./components/AuthView";
 
-import { ComponentItem, QuoteProposal, SupplierConfig, QuoteLineItem } from "./types";
+import { QuoteProposal, SupplierConfig, QuoteLineItem, QuoteStatus } from "./types";
 import { supabase } from "./context/InventoryContext";
 
 import { useInventory } from "./context/InventoryContext";
+import { streamQuote } from "./services/pythonApi";
+import { adaptPyQuoteToLineItems } from "./services/quoteAdapter";
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
 
-  const { inventory } = useInventory();
+  const { inventory, refreshInventory } = useInventory();
   
   // Specs Sub-flow State Tracker
   const [specsFlowState, setSpecsFlowState] = useState<"input" | "loading" | "verify" | "preview">("input");
@@ -26,6 +28,8 @@ export default function App() {
   const [synthProjectName, setSynthProjectName] = useState("Enterprise AI Workstation");
   const [synthTargetBudget, setSynthTargetBudget] = useState(15000);
   const [synthLineItems, setSynthLineItems] = useState<QuoteLineItem[]>([]);
+  const [processingStatus, setProcessingStatus] = useState("Initializing quote engine...");
+  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
 
   // Authenticated State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -162,51 +166,45 @@ export default function App() {
 
   // 2. AI Synthesis Flow Trigger
   const handleGenerateSpecifications = async (promptText: string, budgetLimit: number) => {
+    if (budgetLimit < 3800) {
+      alert("Minimum budget is RM 3,800. Please increase your target budget.");
+      return;
+    }
+
     setSynthTargetBudget(budgetLimit);
+    setActiveQuoteId(null);
     setSpecsFlowState("loading");
+    setProcessingStatus("Connecting to Python quote engine...");
 
-    // Give a neat slight extra transition delay so user feels the visual fidelity of loading
-    setTimeout(async () => {
-      try {
-        const res = await fetch("/api/quotes/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: promptText, budget: budgetLimit })
-        });
-
-        if (res.ok) {
-          const genResult = await res.json();
-          setSynthProjectName(genResult.project || "AI-Optimized Workstation Proposal");
-          setSynthLineItems(genResult.items || []);
-          setSpecsFlowState("verify");
-        } else {
-          throw new Error("Generation endpoint error status");
+    try {
+      for await (const event of streamQuote({ brief: promptText, budget: budgetLimit })) {
+        if (event.message) {
+          setProcessingStatus(event.message);
         }
-      } catch (e) {
-        console.error("Error synthesizing specification, applying safety rule configurations.", e);
-        // Fallback safety to guarantee user experiences a gorgeous output if network lags
-        setSynthProjectName("Enterprise Custom Workstation");
-           setSynthLineItems([
-          {
-            component: inventory[0] || { id: "comp-1", name: "AMD Ryzen 7 7800X3D", sku: "AMD-R7-7800X3D", price: 1650, category: "CPU", icon: "developer_board", stock: 45, lastUpdated: "Today" },
-            quantity: 1,
-            rationale: "Fulfills primary concurrency parameters and guarantees maximum bandwidth allocation limits."
-          },
-          {
-            component: inventory[3] || { id: "comp-4", name: "Corsair Vengeance 32GB DDR5-6000", sku: "CR-VG-32G-6000", price: 520, category: "RAM", icon: "memory", stock: 80, lastUpdated: "Today" },
-            quantity: 1,
-            rationale: "Sustains optimal memory bandwidth, fully isolating workloads during burst calculations."
-          }
-        ]);
-        setSpecsFlowState("verify");
+
+        if (event.step === "result" && event.data) {
+          setSynthProjectName("AI-Optimized Hardware Quote");
+          setSynthLineItems(adaptPyQuoteToLineItems(event.data, inventory));
+          setSpecsFlowState("verify");
+          return;
+        }
+
+        if (event.step === "error") {
+          throw new Error(event.message || "Quote generation failed.");
+        }
       }
-    }, 2800);
+    } catch (e) {
+      console.error("Error generating specifications via Python backend.", e);
+      setSpecsFlowState("input");
+      alert("Failed to generate quote. Check that the Python backend is running on port 8000.");
+    }
   };
 
   // 3. User Confirmed Verify Selection -> Leads to Invoice Preview
   const handleConfirmVerification = (finalItems: QuoteLineItem[], finalProjectName: string) => {
     setSynthLineItems(finalItems);
     setSynthProjectName(finalProjectName);
+    setActiveQuoteId(null);
     setSpecsFlowState("preview");
   };
 
@@ -260,7 +258,92 @@ export default function App() {
 
     // Reset Specs Flow
     setSpecsFlowState("input");
+    setActiveQuoteId(null);
     setCurrentTab("dashboard");
+  };
+
+  const deductCatalogStockForQuote = async (items: QuoteLineItem[]) => {
+    const requiredById = items.reduce<Record<string, number>>((acc, item) => {
+      const id = item.component.id;
+      if (!id) return acc;
+      acc[id] = (acc[id] || 0) + item.quantity;
+      return acc;
+    }, {});
+    const ids = Object.keys(requiredById);
+    if (ids.length === 0) return;
+
+    const { data, error } = await supabase
+      .from("catalog")
+      .select("id, part_name, stock_level")
+      .in("id", ids);
+
+    if (error) throw error;
+
+    const rowsById = new Map((data || []).map((row: any) => [row.id, row]));
+    const insufficient = ids
+      .map((id) => {
+        const row = rowsById.get(id);
+        const currentStock = Number(row?.stock_level || 0);
+        return {
+          id,
+          name: row?.part_name || id,
+          required: requiredById[id],
+          available: currentStock,
+        };
+      })
+      .filter((row) => row.available < row.required);
+
+    if (insufficient.length > 0) {
+      throw new Error(
+        "Not enough stock to confirm: " +
+        insufficient.map((row) => `${row.name} needs ${row.required}, has ${row.available}`).join("; ")
+      );
+    }
+
+    for (const id of ids) {
+      const row = rowsById.get(id);
+      const nextStock = Number(row.stock_level || 0) - requiredById[id];
+      const { error: updateError } = await supabase
+        .from("catalog")
+        .update({ stock_level: nextStock })
+        .eq("id", id);
+      if (updateError) throw updateError;
+    }
+  };
+
+  const handleHistoricalQuoteStatusChange = async (nextStatus: QuoteStatus) => {
+    if (!activeQuoteId || !userId) return;
+
+    const quote = quotes.find((entry) => entry.id === activeQuoteId);
+    if (!quote) return;
+
+    const previousStatus = quote.status;
+    if (previousStatus === nextStatus) return;
+
+    try {
+      if (nextStatus === "Approved" && previousStatus !== "Approved") {
+        await deductCatalogStockForQuote(quote.items);
+      }
+
+      const { error } = await supabase
+        .from("quotes")
+        .update({ status: nextStatus })
+        .eq("id", activeQuoteId)
+        .eq("user_id", userId);
+
+      if (error) throw error;
+
+      setQuotes((prev) =>
+        prev.map((entry) =>
+          entry.id === activeQuoteId ? { ...entry, status: nextStatus } : entry
+        )
+      );
+      await refreshInventory();
+    } catch (error) {
+      console.error("Failed to update quote status:", error);
+      alert(error instanceof Error ? error.message : "Failed to update quote status.");
+      throw error;
+    }
   };
 
   // 5. Auth handlers
@@ -283,18 +366,23 @@ export default function App() {
     setSynthProjectName(quote.project || quote.brief);
     setSynthTargetBudget(quote.targetBudget || quote.total);
     setSynthLineItems(quote.items);
+    setActiveQuoteId(quote.id);
     setSpecsFlowState("preview");
     setCurrentTab("specs");
   };
 
+  const activeQuote = activeQuoteId
+    ? quotes.find((quote) => quote.id === activeQuoteId)
+    : null;
+
   // Calculate dynamic Low Stock alerts from catalog
   const stockAlerts = inventory
-    .filter((it) => it.stock <= 10)
+    .filter((it) => it.stock_level <= 10)
     .map((it) => ({
       id: it.id,
-      name: it.name,
+      name: it.part_name,
       sku: it.sku,
-      stock: it.stock,
+      stock: it.stock_level,
       icon: it.icon
     }));
 
@@ -355,6 +443,7 @@ export default function App() {
         onTabChange={(tab) => {
           setCurrentTab(tab);
           if (tab === "specs") {
+            setActiveQuoteId(null);
             setSpecsFlowState("input"); // Reset specs workflow when clicking fresh
           }
         }}
@@ -371,6 +460,7 @@ export default function App() {
             quotes={quotes}
             onNewQuoteClick={() => {
               setCurrentTab("specs");
+              setActiveQuoteId(null);
               setSpecsFlowState("input");
             }}
             onViewQuote={handleViewHistoricalQuote}
@@ -386,7 +476,7 @@ export default function App() {
             )}
 
             {specsFlowState === "loading" && (
-              <SpecsProcessingView />
+              <SpecsProcessingView statusMessage={processingStatus} />
             )}
 
             {specsFlowState === "verify" && (
@@ -404,10 +494,12 @@ export default function App() {
               <SpecsPreviewView
                 projectName={synthProjectName}
                 items={synthLineItems}
-                customerName="Neural Nexus Corp"
+                customerName={activeQuote?.customer || "Neural Nexus Corp"}
                 targetBudget={synthTargetBudget}
                 settings={settings}
                 onFinish={handleFinishSavingQuote}
+                quoteStatus={activeQuote?.status}
+                onStatusChange={activeQuote ? handleHistoricalQuoteStatusChange : undefined}
               />
             )}
           </>

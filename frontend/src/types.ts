@@ -9,6 +9,7 @@ export interface ComponentItem {
   category: ComponentCategory;
   icon: string;
   stock_level: number;
+  specs?: Record<string, unknown>;
 }
 
 export interface QuoteLineItem {
@@ -18,12 +19,14 @@ export interface QuoteLineItem {
   customPrice?: number;
 }
 
+export type QuoteStatus = 'Draft' | 'Approved' | 'Sent' | 'Declined';
+
 export interface QuoteProposal {
   id: string;
   date: string;
   customer: string;
   brief: string;
-  status: 'Approved' | 'Draft' | 'Sent' | 'Declined';
+  status: QuoteStatus;
   total: number;
   items: QuoteLineItem[];
   targetBudget?: number;

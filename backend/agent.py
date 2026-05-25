@@ -122,7 +122,7 @@ Total of all selected parts must be <= RM {budget:,.0f}.
 
         # Step 6 — run compatibility engine
         emit("compat", "Running compatibility checks...")
-        emit("compat", "  Checking CPU ↔ motherboard socket...")
+        emit("compat", "  Checking CPU and motherboard socket...")
         emit("compat", "  Checking RAM type...")
         emit("compat", "  Checking PSU wattage...")
         emit("compat", "  Checking cooler socket support & TDP...")

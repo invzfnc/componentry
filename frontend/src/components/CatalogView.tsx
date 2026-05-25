@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ComponentItem, ComponentCategory } from "../types";
 import { supabase, useInventory } from "../context/InventoryContext";
+import { iconForCategory, normalizeIcon } from "../services/quoteAdapter";
 
 export default function CatalogView() {
   const { inventory, refreshInventory } = useInventory();
@@ -63,6 +64,7 @@ export default function CatalogView() {
       price: parseFloat(formPrice) || 0,
       category: formCategory,
       stock_level: parseInt(formStock) || 0,
+      icon: formIcon || iconForCategory(formCategory),
     };
 
     if (formId) {
@@ -107,33 +109,7 @@ export default function CatalogView() {
 
   const handleFormCategoryChange = (catName: string) => {
     setFormCategory(catName as ComponentCategory);
-    // Auto map standard icons based on product category
-    switch (catName) {
-      case "CPU":
-        setFormIcon("developer_board");
-        break;
-      case "GPU":
-        setFormIcon("videogame_asset");
-        break;
-      case "Motherboard":
-        setFormIcon("domain");
-        break;
-      case "RAM":
-        setFormIcon("memory");
-        break;
-      case "Storage":
-        setFormIcon("hard_drive");
-        break;
-      case "PSU":
-        setFormIcon("power");
-        break;
-      case "Cooling":
-        setFormIcon("ac_unit");
-        break;
-      default:
-        setFormIcon("hardware");
-        break;
-    }
+    setFormIcon(iconForCategory(catName));
   };
 
   // Filter products list
@@ -232,8 +208,7 @@ export default function CatalogView() {
                     <td className="px-5 py-4 text-center shrink-0">
                       <div className="w-8 h-8 rounded bg-[#faf9f6] border border-[#dadad7] flex items-center justify-center text-[#585956] group-hover:bg-[#e6f4ea] group-hover:border-[#bccbb3] group-hover:text-[#0d6e00] transition-colors">
                         <span className="material-symbols-outlined text-base leading-none">
-                          {/* Default icon based on category could be rendered here, but using 'hardware' as fallback */}
-                          hardware
+                          {normalizeIcon(it.icon, it.category)}
                         </span>
                       </div>
                     </td>

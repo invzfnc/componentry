@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { QuoteLineItem, SupplierConfig, QuoteProposal } from "../types";
+import { QuoteLineItem, SupplierConfig, QuoteStatus } from "../types";
+import { displayName } from "../services/quoteAdapter";
 
 interface SpecsPreviewViewProps {
   projectName: string;
@@ -8,6 +9,8 @@ interface SpecsPreviewViewProps {
   targetBudget: number;
   settings: SupplierConfig;
   onFinish: (saveToHistory: boolean) => void;
+  quoteStatus?: QuoteStatus;
+  onStatusChange?: (nextStatus: QuoteStatus) => Promise<void>;
 }
 
 export default function SpecsPreviewView({
@@ -16,15 +19,16 @@ export default function SpecsPreviewView({
   customerName,
   targetBudget,
   settings,
-  onFinish
+  onFinish,
+  quoteStatus,
+  onStatusChange
 }: SpecsPreviewViewProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const subtotal = items.reduce((sum, item) => sum + (item.component.price * item.quantity), 0);
-  const assemblyFee = (subtotal + 150) <= targetBudget ? 150 : 0;
-  const isAssemblyWaived = assemblyFee === 0;
-  const grandTotal = Math.min(subtotal + assemblyFee, targetBudget);
+  const grandTotal = subtotal;
 
   const quoteNumber = `${settings.customQuotePrefix || "TRD"}-${Math.floor(100000 + Math.random() * 900000)}`;
   const currentDate = new Date().toLocaleDateString("en-US", {
@@ -45,6 +49,16 @@ export default function SpecsPreviewView({
     setTimeout(() => setDownloaded(false), 2000);
   };
 
+  const handleStatusChange = async (nextStatus: QuoteStatus) => {
+    if (!onStatusChange || nextStatus === quoteStatus) return;
+    setIsUpdatingStatus(true);
+    try {
+      await onStatusChange(nextStatus);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top action bar */}
@@ -58,7 +72,39 @@ export default function SpecsPreviewView({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {onStatusChange && quoteStatus && (
+            <div className="flex items-center gap-2 bg-[#fbfbfa] p-1.5 rounded-lg border border-[#dadad7] shadow-sm">
+              <span className="text-[11px] font-semibold text-[#878884] uppercase tracking-wider px-2">
+                Status:
+              </span>
+              <div className="flex bg-white rounded-md border border-[#dadad7] overflow-hidden">
+                {(["Draft", "Sent", "Approved", "Declined"] as const).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => handleStatusChange(status)}
+                    disabled={isUpdatingStatus || status === quoteStatus}
+                    className={`px-4 py-2 text-xs font-bold transition-all disabled:opacity-50 ${
+                      status === quoteStatus
+                        ? status === "Approved"
+                          ? "bg-[#34a853] text-white"
+                          : status === "Declined"
+                          ? "bg-[#ea4335] text-white"
+                          : status === "Sent"
+                          ? "bg-[#1a73e8] text-white"
+                          : "bg-[#141514] text-white"
+                        : "text-[#585956] hover:bg-[#f5f4ef] cursor-pointer hover:text-black border-r border-[#dadad7] last:border-0"
+                    }`}
+                  >
+                    {status === "Draft" ? "Draft" : 
+                     status === "Sent" ? "Mark Outbound" :
+                     status === "Approved" ? "Client Approved" : "Client Declined"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Share */}
           <button
             onClick={handleShare}
@@ -187,7 +233,7 @@ export default function SpecsPreviewView({
                   <tr key={idx} className="hover:bg-[#faf9f6]/40 transition-colors">
                     <td className="px-4 py-3 font-mono font-semibold text-center">{it.quantity}</td>
                     <td className="px-4 py-3">
-                      <p className="font-bold text-[#141514]">{it.component.name}</p>
+                      <p className="font-bold text-[#141514]">{displayName(it.component)}</p>
                       <p className="text-[10px] font-mono text-[#585956] mt-0.5">SKU: {it.component.sku} | Category: {it.component.category}</p>
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[#585956]">
@@ -219,12 +265,6 @@ export default function SpecsPreviewView({
               <div className="px-4 py-2 flex justify-between items-center bg-[#faf9f6]">
                 <span className="text-[#585956] font-semibold text-[10px] uppercase">Hardware Subtotal:</span>
                 <span className="font-mono font-bold text-[#141514]">RM {subtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="px-4 py-2 flex justify-between items-center bg-white">
-                <span className="text-[#585956] font-semibold text-[10px] uppercase">Assembly & Burn-in Testing:</span>
-                <span className="font-mono text-[#1a1c1a]">
-                  {isAssemblyWaived ? "Waived" : `RM ${assemblyFee.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-                </span>
               </div>
               <div className="px-4 py-3.5 flex flex-col bg-[#fbfbfa] gap-1">
                 <div className="flex justify-between items-center w-full">

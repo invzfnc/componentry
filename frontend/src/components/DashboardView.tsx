@@ -15,15 +15,7 @@ export default function DashboardView({ quotes, onNewQuoteClick, onViewQuote, on
   const lowStockItems = inventory.filter((item) => (item.stock_level ?? 0) < 10);
 
   const getStatusBadge = (status: string) => {
-    // Map existing system values to ("Approved", "Draft", "Cancelled")
-    let displayStatus = status;
-    if (status === "Declined") {
-      displayStatus = "Cancelled";
-    } else if (status === "Sent") {
-      displayStatus = "Draft";
-    }
-
-    switch (displayStatus) {
+    switch (status) {
       case "Approved":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#e2f3df] text-[#137333] border border-[#bcdeb5]/60 font-sans">
@@ -31,11 +23,18 @@ export default function DashboardView({ quotes, onNewQuoteClick, onViewQuote, on
             Approved
           </span>
         );
-      case "Cancelled":
+      case "Declined":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#faeae8] text-[#8a1a1a] border border-[#eba1a1]/60 font-sans">
             <span className="w-1.5 h-1.5 rounded-full bg-[#ea4335]"></span>
-            Cancelled
+            Declined
+          </span>
+        );
+      case "Sent":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#e8f0fe] text-[#174ea6] border border-[#d2e3fc]/60 font-sans">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#1a73e8]"></span>
+            Sent
           </span>
         );
       default: // Draft

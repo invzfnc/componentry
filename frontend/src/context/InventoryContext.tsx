@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { ComponentItem } from '../types';
+import { normalizeCategory, normalizeIcon } from '../services/quoteAdapter';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -30,7 +31,19 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error('Error fetching inventory:', error);
       } else {
-        setInventory(data || []);
+        setInventory((data || []).map((item: any) => {
+          const category = normalizeCategory(item.category);
+          return {
+            ...item,
+            name: item.part_name || item.name || item.sku,
+            part_name: item.part_name || item.name || item.sku,
+            category,
+            price: Number(item.price || 0),
+            stock_level: Number(item.stock_level || 0),
+            icon: normalizeIcon(item.icon, category),
+            specs: item.specs || {},
+          };
+        }));
       }
     } catch (err) {
       console.error('Unexpected error fetching inventory:', err);

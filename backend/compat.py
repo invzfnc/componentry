@@ -40,7 +40,7 @@ def check_compatibility(parts: dict) -> list[str]:
     # Rule 1 — CPU socket must match motherboard socket
     # e.g. AM5 CPU must pair with AM5 motherboard
     # -------------------------------------------------------------------------
-    if cpu.get("socket") != mb.get("socket"):
+    if cpu.get("socket") and mb.get("socket") and cpu.get("socket") != mb.get("socket"):
         errors.append(
             f"Socket mismatch: CPU is {cpu.get('socket')}, "
             f"motherboard requires {mb.get('socket')}."
@@ -50,7 +50,7 @@ def check_compatibility(parts: dict) -> list[str]:
     # Rule 2 — RAM type must match motherboard RAM type
     # e.g. DDR5 RAM must pair with a DDR5 motherboard
     # -------------------------------------------------------------------------
-    if ram.get("type") != mb.get("ram_type"):
+    if ram.get("type") and mb.get("ram_type") and ram.get("type") != mb.get("ram_type"):
         errors.append(
             f"RAM mismatch: selected {ram.get('type')} "
             f"but motherboard supports {mb.get('ram_type')} only."
@@ -60,8 +60,12 @@ def check_compatibility(parts: dict) -> list[str]:
     # Rule 3 — PSU wattage must cover CPU TDP + GPU TDP + 150W system overhead
     # The 150W covers fans, storage, RAM, and general headroom
     # -------------------------------------------------------------------------
+    has_power_specs = all(
+        value is not None
+        for value in (cpu.get("tdp"), gpu.get("tdp"), psu.get("wattage"))
+    )
     required_watts = cpu.get("tdp", 0) + gpu.get("tdp", 0) + 150
-    if psu.get("wattage", 0) < required_watts:
+    if has_power_specs and psu.get("wattage", 0) < required_watts:
         errors.append(
             f"PSU too weak: need {required_watts}W "
             f"(CPU {cpu.get('tdp')}W + GPU {gpu.get('tdp')}W + 150W overhead), "
@@ -73,7 +77,7 @@ def check_compatibility(parts: dict) -> list[str]:
     # Cooler's socket_support is an array e.g. ["AM5", "AM4", "LGA1700"]
     # -------------------------------------------------------------------------
     supported_sockets = cooler.get("socket_support", [])
-    if cpu.get("socket") not in supported_sockets:
+    if cpu.get("socket") and supported_sockets and cpu.get("socket") not in supported_sockets:
         errors.append(
             f"Cooler incompatible: does not support {cpu.get('socket')} socket. "
             f"Supported sockets: {supported_sockets}."
@@ -83,7 +87,11 @@ def check_compatibility(parts: dict) -> list[str]:
     # Rule 5 — Cooler TDP capacity must meet or exceed CPU TDP
     # e.g. a 150W cooler cannot handle a 170W CPU
     # -------------------------------------------------------------------------
-    if cooler.get("tdp_capacity", 0) < cpu.get("tdp", 0):
+    if (
+        cooler.get("tdp_capacity") is not None
+        and cpu.get("tdp") is not None
+        and cooler.get("tdp_capacity", 0) < cpu.get("tdp", 0)
+    ):
         errors.append(
             f"Cooler underpowered: CPU TDP is {cpu.get('tdp')}W "
             f"but cooler max is {cooler.get('tdp_capacity')}W."
@@ -98,7 +106,7 @@ def check_compatibility(parts: dict) -> list[str]:
     hierarchy = {"ATX": 3, "mATX": 2, "mITX": 1}
     mb_size   = hierarchy.get(mb.get("form_factor", ""), 0)
     case_size = hierarchy.get(case_s.get("form_factor", ""), 0)
-    if mb_size > case_size:
+    if mb.get("form_factor") and case_s.get("form_factor") and mb_size > case_size:
         errors.append(
             f"Case too small: {mb.get('form_factor')} motherboard "
             f"does not fit in a {case_s.get('form_factor')} case."

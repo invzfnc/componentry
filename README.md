@@ -49,9 +49,9 @@ Componentry is AI-native. Compatibility is understood from the model's training,
 
 ## Architecture overview
 
-<div style="text-align: center; align-items: center">
-  <img src="https://raw.githubusercontent.com/invzfnc/componentry/main/docs/componentry_agent_flow.svg" alt="Desktop view">
-  <p align="center">Agentic framework architecture diagram</p>
+Agentic framework architecture diagram
+<div>
+  <img src="https://raw.githubusercontent.com/invzfnc/componentry/main/docs/componentry_agent_flow.svg" height="700">
 </div>
 
 The system has three main layers:

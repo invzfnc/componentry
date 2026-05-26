@@ -269,10 +269,10 @@ async def stream_quote(req: QuoteRequest):
         asyncio.create_task(run_agent())
 
         heartbeat_messages = [
-            "Gemini is evaluating compatible part combinations...",
-            "Still waiting for Gemini; keeping the quote stream alive...",
+            "Evaluating compatible part combinations...",
+            "Keeping the quote stream alive...",
             "Cross-checking budget and engineering constraints...",
-            "The model is still reasoning through the catalog...",
+            "Reasoning through the catalog...",
         ]
         heartbeat_idx = 0
 

@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/py/(.*)",
+      "destination": "https://componentry-backend-6054389813.us-central1.run.app/$1"
+    }
+  ]
+}

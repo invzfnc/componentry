@@ -114,6 +114,7 @@ export function adaptPyQuoteToLineItems(
       component,
       quantity: 1,
       rationale: part.reasoning,
+      alternatives: part.alternatives,
     };
   });
 }

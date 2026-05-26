@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { QuoteLineItem, ComponentItem, ComponentCategory } from "../types";
+import { QuoteLineItem, ComponentItem, ComponentCategory, AiAlternative } from "../types";
 import { checkCompatibility } from "../services/pythonApi";
 import { ICON_MAP, displayName, hasSpecs, normalizeCategory } from "../services/quoteAdapter";
 
@@ -20,12 +20,12 @@ const CATEGORY_KEYWORDS: Array<[ComponentCategory, string[]]> = [
   ["Storage", ["storage", "ssd", "hdd", "nvme"]],
   ["PSU", ["psu", "power supply", "watt", "850w", "1000w"]],
   ["Cooling", ["cooler", "cooling", "aio", "air cooler"]],
-  ["Hardware", ["case", "chassis"]],
+  ["Case", ["case", "chassis"]],
 ];
 
 function inferSwapCategory(component: ComponentItem): ComponentCategory {
   const normalized = normalizeCategory(component.category);
-  if (normalized !== "Hardware") return normalized;
+  if (normalized !== "Case") return normalized;
 
   const searchable = [
     component.id,
@@ -331,43 +331,93 @@ export default function SpecsVerifyView({
                         </button>
 
                         {/* Swap Inline Alternatives Drawer with elevated z-index */}
-                        {swappingLineIdx === idx && (
-                          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-3rem))] bg-white border border-[#dadad7] rounded-xl shadow-2xl z-50 p-4 space-y-3">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#585956] pb-2 border-b border-[#dadad7]">
-                              Other choices ({alternatives.length})
-                            </p>
-                            {alternatives.length === 0 ? (
-                              <p className="text-xs text-[#878884] italic p-2 text-center">
-                                No other matching parts in this catalog.
-                              </p>
-                            ) : (
-                              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                                {alternatives.map((alt) => {
-                                  const diff = alt.price - line.component.price;
-                                  const isPositive = diff > 0;
-                                  return (
-                                    <button
-                                      key={alt.id}
-                                      onClick={() => handleSwapComponent(idx, alt)}
-                                      className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#dadad7] hover:border-[#0d6e00] hover:bg-[#faf9f6] text-left transition-all cursor-pointer"
-                                    >
-                                      <div className="min-w-0 pr-2">
-                                        <p className="text-xs font-bold text-[#141514] truncate">{alt.part_name}</p>
-                                        <p className="text-[10px] font-mono text-[#585956] mt-0.5">SKU: {alt.sku}</p>
-                                      </div>
-                                      <div className="text-right shrink-0">
-                                        <p className="text-xs font-mono font-bold text-[#141514]">RM {alt.price.toLocaleString()}</p>
-                                        <p className={`text-[10px] font-mono font-bold mt-0.5 ${isPositive ? "text-red-600" : "text-[#0d6e00]"}`}>
-                                          {isPositive ? `+RM ${diff.toLocaleString()}` : `-RM ${Math.abs(diff).toLocaleString()}`}
-                                        </p>
-                                      </div>
-                                    </button>
-                                  );
+                        {swappingLineIdx === idx && (() => {
+                          const aiAlts = line.alternatives;
+                          const downPart = aiAlts?.down ? allCatalogItems.find(c => c.id === aiAlts.down!.id || c.sku?.toUpperCase() === aiAlts.down!.id.toUpperCase()) : null;
+                          const upPart   = aiAlts?.up   ? allCatalogItems.find(c => c.id === aiAlts.up!.id   || c.sku?.toUpperCase() === aiAlts.up!.id.toUpperCase())   : null;
+
+                          const renderAiCard = (part: ComponentItem | null | undefined, hint: AiAlternative | null | undefined, label: string, accent: string, icon: string) => {
+                            if (!hint) return null;
+                            const diff = part ? part.price - line.component.price : null;
+                            return (
+                              <button
+                                key={hint.id}
+                                disabled={!part}
+                                onClick={() => part && handleSwapComponent(idx, {
+                                  ...part,
+                                  icon: part.icon || ICON_MAP[part.category] || "hardware",
+                                  stock_level: part.stock_level,
                                 })}
+                                className={`w-full text-left p-3 rounded-lg border transition-all ${part ? "hover:border-[#0d6e00] hover:bg-[#faf9f6] cursor-pointer border-[#dadad7]" : "opacity-50 cursor-not-allowed border-[#dadad7]"}`}
+                              >
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded font-mono flex items-center gap-0.5 ${accent}`}>
+                                    <span className="material-symbols-outlined text-[10px] leading-none">{icon}</span>
+                                    {label}
+                                  </span>
+                                  {part && diff !== null && (
+                                    <span className={`text-[10px] font-mono font-bold ${diff > 0 ? "text-red-600" : "text-[#0d6e00]"}`}>
+                                      {diff > 0 ? `+RM ${diff.toLocaleString()}` : `-RM ${Math.abs(diff).toLocaleString()}`}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs font-bold text-[#141514] truncate">{part?.part_name || hint.id}</p>
+                                {part && <p className="text-[10px] font-mono text-[#878884] mt-0.5">SKU: {part.sku} · RM {part.price.toLocaleString()}</p>}
+                                <p className="text-[10px] text-[#585956] mt-1.5 leading-relaxed italic">"{hint.tradeoff}"</p>
+                              </button>
+                            );
+                          };
+
+                          const hasAiSuggestions = aiAlts?.down || aiAlts?.up;
+
+                          return (
+                            <div className="absolute right-0 mt-2 w-[min(26rem,calc(100vw-3rem))] bg-white border border-[#dadad7] rounded-xl shadow-2xl z-50 p-4 space-y-3">
+                              {hasAiSuggestions && (
+                                <div className="space-y-2">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#0d6e00] flex items-center gap-1.5 pb-2 border-b border-[#dadad7]">
+                                    <span className="material-symbols-outlined text-[13px]">auto_awesome</span>
+                                    AI Suggestions
+                                  </p>
+                                  {renderAiCard(downPart, aiAlts?.down, "Budget Save", "bg-blue-50 text-blue-700", "arrow_downward")}
+                                  {renderAiCard(upPart,   aiAlts?.up,   "Upgrade",     "bg-amber-50 text-amber-700", "arrow_upward")}
+                                </div>
+                              )}
+
+                              <div className="space-y-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#585956] pb-1 border-t border-[#dadad7] pt-2">
+                                  All options ({alternatives.length})
+                                </p>
+                                {alternatives.length === 0 ? (
+                                  <p className="text-xs text-[#878884] italic p-2 text-center">No other matching parts in this catalog.</p>
+                                ) : (
+                                  <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                                    {alternatives.map((alt) => {
+                                      const diff = alt.price - line.component.price;
+                                      return (
+                                        <button
+                                          key={alt.id}
+                                          onClick={() => handleSwapComponent(idx, alt)}
+                                          className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#dadad7] hover:border-[#0d6e00] hover:bg-[#faf9f6] text-left transition-all cursor-pointer"
+                                        >
+                                          <div className="min-w-0 pr-2">
+                                            <p className="text-xs font-bold text-[#141514] truncate">{alt.part_name}</p>
+                                            <p className="text-[10px] font-mono text-[#585956] mt-0.5">SKU: {alt.sku}</p>
+                                          </div>
+                                          <div className="text-right shrink-0">
+                                            <p className="text-xs font-mono font-bold text-[#141514]">RM {alt.price.toLocaleString()}</p>
+                                            <p className={`text-[10px] font-mono font-bold mt-0.5 ${diff > 0 ? "text-red-600" : "text-[#0d6e00]"}`}>
+                                              {diff > 0 ? `+RM ${diff.toLocaleString()}` : `-RM ${Math.abs(diff).toLocaleString()}`}
+                                            </p>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

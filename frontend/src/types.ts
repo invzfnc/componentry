@@ -12,11 +12,20 @@ export interface ComponentItem {
   specs?: Record<string, unknown>;
 }
 
+export interface AiAlternative {
+  id: string;
+  tradeoff: string;
+}
+
 export interface QuoteLineItem {
   component: ComponentItem;
   quantity: number;
   rationale?: string;
   customPrice?: number;
+  alternatives?: {
+    down?: AiAlternative | null;
+    up?: AiAlternative | null;
+  };
 }
 
 export type QuoteStatus = 'Draft' | 'Approved' | 'Sent' | 'Declined';
